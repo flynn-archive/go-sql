@@ -1060,6 +1060,21 @@ func (tx *Tx) grabConn() (*driverConn, error) {
 	return tx.dc, nil
 }
 
+type TxConn struct {
+	driver.Conn
+	sync.Locker
+}
+
+// Conn returns the underlying database connection. It must be locked during
+// use.
+func (tx *Tx) Conn() (*TxConn, error) {
+	dc, err := tx.grabConn()
+	if err != nil {
+		return nil, err
+	}
+	return &TxConn{Conn: dc.ci, Locker: &dc.Mutex}, nil
+}
+
 // Commit commits the transaction.
 func (tx *Tx) Commit() error {
 	if tx.done {
