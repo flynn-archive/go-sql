@@ -5,12 +5,13 @@
 package sql
 
 import (
-	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/flynn/go-sql/driver"
 )
 
 var someTime = time.Unix(123, 0)

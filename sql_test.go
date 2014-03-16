@@ -5,7 +5,6 @@
 package sql
 
 import (
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/flynn/go-sql/driver"
 )
 
 func init() {

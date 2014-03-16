@@ -7,11 +7,12 @@
 package sql
 
 import (
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
+
+	"github.com/flynn/go-sql/driver"
 )
 
 var errNilPtr = errors.New("destination pointer is nil") // embedded in descriptive error

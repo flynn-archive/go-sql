@@ -5,9 +5,10 @@
 package sql_test
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
+
+	"github.com/flynn/go-sql"
 )
 
 var db *sql.DB

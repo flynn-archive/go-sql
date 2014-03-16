@@ -14,12 +14,13 @@ package sql
 
 import (
 	"container/list"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"io"
 	"runtime"
 	"sync"
+
+	"github.com/flynn/go-sql/driver"
 )
 
 var drivers = make(map[string]driver.Driver)
