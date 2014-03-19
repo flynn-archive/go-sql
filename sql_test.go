@@ -1885,6 +1885,65 @@ func TestConnectionLeak(t *testing.T) {
 	wg.Wait()
 }
 
+func TestSetDSN(t *testing.T) {
+	db := newTestDB(t, "people")
+	defer closeDB(t, db)
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkCount := func() {
+		r, err := tx.Query("SELECT|people|name|")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var n int
+		for r.Next() {
+			n++
+		}
+		r.Close()
+		if n != 3 {
+			t.Errorf("Expected 3 rows, got %d", n)
+		}
+	}
+
+	checkCount()
+
+	// open a few idle connections
+	for i := 0; i < 2; i++ {
+		r, err := db.Query("SELECT|people|name|")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Close()
+	}
+
+	db.SetDSN("bar")
+	exec(t, db, "CREATE|people|name=string,age=int32,photo=blob,dead=bool,bdate=datetime")
+	exec(t, db, "INSERT|people|name=Joe,age=?,photo=APHOTO", 1)
+	r, err := db.Query("SELECT|people|name|")
+	r.Next()
+	var name string
+	r.Scan(&name)
+	if name != "Joe" {
+		t.Errorf(`Expected name to be "Joe", got %q`, name)
+	}
+	r.Close()
+
+	// old connection tx
+	checkCount()
+	tx.Commit()
+
+	for e := db.freeConn.Front(); e != nil; e = e.Next() {
+		dsn := e.Value.(*driverConn).dsn
+		if dsn != "bar" {
+			t.Errorf(`Expected dsn to be "bar", got %q`, dsn)
+		}
+	}
+}
+
 func BenchmarkConcurrentDBExec(b *testing.B) {
 	b.ReportAllocs()
 	ct := new(concurrentDBExecTest)

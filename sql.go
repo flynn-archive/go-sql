@@ -195,9 +195,9 @@ var ErrNoRows = errors.New("sql: no rows in result set")
 // can be controlled with SetMaxIdleConns.
 type DB struct {
 	driver driver.Driver
-	dsn    string
 
 	mu           sync.Mutex // protects following fields
+	dsn          string
 	freeConn     *list.List // of *driverConn
 	connRequests *list.List // of connRequest
 	numOpen      int
@@ -227,6 +227,7 @@ type driverConn struct {
 	closed      bool
 	finalClosed bool // ci.Close has been called
 	openStmt    map[driver.Stmt]bool
+	dsn         string
 
 	// guarded by db.mu
 	inUse      bool
@@ -531,6 +532,26 @@ func (db *DB) SetMaxIdleConns(n int) {
 	}
 }
 
+func (db *DB) SetDSN(dsn string) {
+	db.mu.Lock()
+	if db.dsn == dsn {
+		db.mu.Unlock()
+		return
+	}
+	db.dsn = dsn
+	closing := make([]*driverConn, 0, db.freeConn.Len())
+	for db.freeConn.Front() != nil {
+		dc := db.freeConn.Front().Value.(*driverConn)
+		dc.listElem = nil
+		db.freeConn.Remove(db.freeConn.Front())
+		closing = append(closing, dc)
+	}
+	db.mu.Unlock()
+	for _, c := range closing {
+		c.Close()
+	}
+}
+
 // SetMaxOpenConns sets the maximum number of open connections to the database.
 //
 // If MaxIdleConns is greater than 0 and the new MaxOpenConns is less than
@@ -579,7 +600,10 @@ func (db *DB) connectionOpener() {
 
 // Open one new connection
 func (db *DB) openNewConnection() {
-	ci, err := db.driver.Open(db.dsn)
+	db.mu.Lock()
+	dsn := db.dsn
+	db.mu.Unlock()
+	ci, err := db.driver.Open(dsn)
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	if db.closed {
@@ -594,8 +618,9 @@ func (db *DB) openNewConnection() {
 		return
 	}
 	dc := &driverConn{
-		db: db,
-		ci: ci,
+		db:  db,
+		ci:  ci,
+		dsn: dsn,
 	}
 	if db.putConnDBLocked(dc, err) {
 		db.addDepLocked(dc, dc)
@@ -653,16 +678,18 @@ func (db *DB) conn() (*driverConn, error) {
 		return conn, nil
 	}
 
+	dsn := db.dsn
 	db.mu.Unlock()
-	ci, err := db.driver.Open(db.dsn)
+	ci, err := db.driver.Open(dsn)
 	if err != nil {
 		return nil, err
 	}
 	db.mu.Lock()
 	db.numOpen++
 	dc := &driverConn{
-		db: db,
-		ci: ci,
+		db:  db,
+		ci:  ci,
+		dsn: dsn,
 	}
 	db.addDepLocked(dc, dc)
 	dc.inUse = true
@@ -782,6 +809,10 @@ func (db *DB) putConn(dc *driverConn, err error) {
 // If a connRequest was fullfilled or the *driverConn was placed in the
 // freeConn list, then true is returned, otherwise false is returned.
 func (db *DB) putConnDBLocked(dc *driverConn, err error) bool {
+	if db.dsn != dc.dsn {
+		// dsn has changed since this connection was opened
+		return false
+	}
 	if db.connRequests.Len() > 0 {
 		req := db.connRequests.Front().Value.(connRequest)
 		db.connRequests.Remove(db.connRequests.Front())
