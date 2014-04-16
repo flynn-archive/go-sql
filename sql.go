@@ -552,6 +552,12 @@ func (db *DB) SetDSN(dsn string) {
 	}
 }
 
+func (db *DB) DSN() string {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.dsn
+}
+
 // SetMaxOpenConns sets the maximum number of open connections to the database.
 //
 // If MaxIdleConns is greater than 0 and the new MaxOpenConns is less than
