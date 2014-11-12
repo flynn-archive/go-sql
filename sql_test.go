@@ -1974,10 +1974,9 @@ func TestSetDSN(t *testing.T) {
 	checkCount()
 	tx.Commit()
 
-	for e := db.freeConn.Front(); e != nil; e = e.Next() {
-		dsn := e.Value.(*driverConn).dsn
-		if dsn != "bar" {
-			t.Errorf(`Expected dsn to be "bar", got %q`, dsn)
+	for _, dc := range db.freeConn {
+		if dc.dsn != "bar" {
+			t.Errorf(`Expected dsn to be "bar", got %q`, dc.dsn)
 		}
 	}
 }

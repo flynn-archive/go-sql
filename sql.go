@@ -554,13 +554,9 @@ func (db *DB) SetDSN(dsn string) {
 		return
 	}
 	db.dsn = dsn
-	closing := make([]*driverConn, 0, db.freeConn.Len())
-	for db.freeConn.Front() != nil {
-		dc := db.freeConn.Front().Value.(*driverConn)
-		dc.listElem = nil
-		db.freeConn.Remove(db.freeConn.Front())
-		closing = append(closing, dc)
-	}
+	closing := make([]*driverConn, len(db.freeConn))
+	copy(closing, db.freeConn)
+	db.freeConn = db.freeConn[:0]
 	db.mu.Unlock()
 	for _, c := range closing {
 		c.Close()
